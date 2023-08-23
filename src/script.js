@@ -9,6 +9,9 @@ import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js'
  */
 const gltfLoader = new GLTFLoader()
 const rgbeLoader = new RGBELoader()
+const textureLoader = new THREE.TextureLoader()
+
+
 
 /**
  * Base
@@ -33,9 +36,59 @@ const updateAllMaterials = () =>
         if(child.isMesh && child.material.isMeshStandardMaterial)
         {
             child.material.envMapIntensity = global.envMapIntensity
+
+            child.castShadow = true
+            child.receiveShadow = true
         }
     })
 }
+
+
+/**
+ * Textures
+ */
+
+//wall behind
+const brickColorTexture = textureLoader.load('/textures/castle_brick_broken_06/castle_brick_broken_06_diff_1k.jpg')
+const brickNormalTexture = textureLoader.load('/textures/castle_brick_broken_06/castle_brick_broken_06_nor_gl_1k.png')
+const brickAOroughMetalTexture = textureLoader.load('/textures/castle_brick_broken_06/castle_brick_broken_06_arm_1k.jpg')
+
+//floor
+const woodColorTexture = textureLoader.load('/textures/wood_cabinet_worn_long/wood_cabinet_worn_long_diff_1k.jpg')
+const woodNormalTexture = textureLoader.load('/textures/wood_cabinet_worn_long/wood_cabinet_worn_long_nor_gl_1k.png')
+const woodAOroughMetalTexture = textureLoader.load('/textures/wood_cabinet_worn_long/wood_cabinet_worn_long_arm_1k.jpg')
+
+//Color spaces
+
+brickColorTexture.colorSpace = THREE.SRGBColorSpace
+woodColorTexture.colorSpace = THREE.SRGBColorSpace
+
+const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(8, 8),
+    new THREE.MeshStandardMaterial({
+        map: woodColorTexture,
+        normalMap: woodNormalTexture,
+        aoMap: woodAOroughMetalTexture,
+        roughnessMap: woodAOroughMetalTexture,
+        metalnessMap: woodAOroughMetalTexture,
+    })
+)
+floor.rotation.x = - Math.PI * 0.5
+scene.add(floor)
+
+const wall = new THREE.Mesh(
+    new THREE.PlaneGeometry(8, 8),
+    new THREE.MeshStandardMaterial({
+        map: brickColorTexture,
+        normalMap: brickNormalTexture,
+        aoMap: brickAOroughMetalTexture,
+        roughnessMap: brickAOroughMetalTexture,
+        metalnessMap: brickAOroughMetalTexture,
+    })
+)
+wall.position.y = 4
+wall.position.z = -4
+scene.add(wall)
 
 /**
  * Environment map
@@ -59,9 +112,41 @@ rgbeLoader.load('/environmentMaps/0/2k.hdr', (environmentMap) =>
 })
 
 /**
+ * Directional Light
+ */
+const directionalLight = new THREE.DirectionalLight(0xffffff, 2)
+directionalLight.position.set(-4, 6.5, 2.5)
+scene.add(directionalLight)
+
+gui.add(directionalLight, 'intensity').min(0).max(10).step(0.001).name('Light Intensity')
+gui.add(directionalLight.position, 'x').min(-10).max(10).step(0.001).name('LightX')
+gui.add(directionalLight.position, 'y').min(-10).max(10).step(0.001).name('LightY')
+gui.add(directionalLight.position, 'z').min(-10).max(10).step(0.001).name('LightZ')
+
+//Shadows
+directionalLight.castShadow = true
+directionalLight.shadow.camera.far = 15
+directionalLight.shadow.normalBias = 0.027
+directionalLight.shadow.biasias = - 0.004
+directionalLight.shadow.mapSize.set(512, 512)
+gui.add(directionalLight, 'castShadow')
+gui.add(directionalLight.shadow, 'normalBias').min(-0.05).max(0.05).step(0.001)
+gui.add(directionalLight.shadow, 'bias').min(-0.05).max(0.05).step(0.001)
+
+
+//Helper
+// const directionalLightHelper = new THREE.CameraHelper(directionalLight.shadow.camera)
+// scene.add(directionalLightHelper)
+
+//Target
+directionalLight.target.position.set(0, 4, 0)
+directionalLight.target.updateMatrixWorld()
+
+
+/**
  * Models
  */
-// Helmet
+Helmet
 gltfLoader.load(
     '/models/FlightHelmet/glTF/FlightHelmet.gltf',
     (gltf) =>
@@ -72,6 +157,19 @@ gltfLoader.load(
         updateAllMaterials()
     }
 )
+
+//hamburger
+// gltfLoader.load(
+//     '/models/hamburger.glb',
+//     (gltf) =>
+//     {
+//         gltf.scene.scale.set(0.4, 0.4, 0.4)
+//         gltf.scene.position.set(0, 2.5, 0)
+//         scene.add(gltf.scene)
+
+//         updateAllMaterials()
+//     }
+// )
 
 /**
  * Sizes
@@ -113,10 +211,31 @@ controls.enableDamping = true
  * Renderer
  */
 const renderer = new THREE.WebGLRenderer({
-    canvas: canvas
+    canvas: canvas,
+    antialias: true
 })
 renderer.setSize(sizes.width, sizes.height)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+
+//Tone Mapping
+renderer.toneMapping = THREE.ReinhardToneMapping
+renderer.toneMappingExposure = 3
+
+gui.add(renderer, 'toneMapping', {
+    No: THREE.NoToneMapping,
+    linear: THREE.LinearToneMapping,
+    Reinhard: THREE.ReinhardToneMapping,
+    Cineon: THREE.CineonToneMapping,
+    ACESFilmic: THREE.ACESFilmicToneMapping,
+})
+gui.add(renderer, 'toneMappingExposure').min(0).max(10).step(0.001)
+
+//Physically accurate  lightining
+renderer.useLegacyLights = false
+gui.add(renderer, 'useLegacyLights')
+
+renderer.shadowMap.enabled = true
+renderer.shadowMap.type = THREE.PCFShadowMap
 
 /**
  * Animate
